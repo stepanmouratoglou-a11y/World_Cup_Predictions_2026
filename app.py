@@ -1284,15 +1284,15 @@ elif st.session_state.page == "Make your prediction":
         # Render Match Card
         st.markdown(f"""<div style="max-width: 800px; margin: 0 auto; background-color: #12151e; border: 1px solid #232837; border-radius: 12px; padding: 25px; box-shadow: 0 6px 16px rgba(0,0,0,0.4);">
 <div style="font-size: 0.95rem; color: #8fa0c0; text-align: center; margin-bottom: 15px; font-weight: 600;">⚽ SIMULATED MATCHUP</div>
-<div style="display: flex; justify-content: space-between; align-items: center; font-size: 1.6rem; font-weight: 800; color: #ffffff; margin-bottom: 25px; font-family: 'Inter', sans-serif;">
-<div style="flex: 1; text-align: right; padding-right: 15px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-<span>{team1}</span>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 1.6rem; font-weight: 800; color: #ffffff; margin-bottom: 25px; font-family: 'Inter', sans-serif; flex-wrap: wrap; gap: 10px;">
+<div style="flex: 1; min-width: 0; text-align: right; padding-right: 15px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;">
+<span style="white-space: normal; word-break: break-word; overflow-wrap: break-word;">{team1}</span>
 {t1_img}
 </div>
-<div class="vs-badge" style="font-size: 0.9rem; padding: 5px 12px; border-radius: 20px;">VS</div>
-<div style="flex: 1; text-align: left; padding-left: 15px; display: flex; align-items: center; justify-content: flex-start; gap: 10px;">
+<div class="vs-badge" style="font-size: 0.9rem; padding: 5px 12px; border-radius: 20px; flex-shrink: 0;">VS</div>
+<div style="flex: 1; min-width: 0; text-align: left; padding-left: 15px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
 {t2_img}
-<span>{team2}</span>
+<span style="white-space: normal; word-break: break-word; overflow-wrap: break-word;">{team2}</span>
 </div>
 </div>
 <div class="pred-section" style="border-top: 1px solid #232837; padding-top: 20px;">
