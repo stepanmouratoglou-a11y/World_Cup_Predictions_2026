@@ -157,12 +157,12 @@ def preprocessing(data):
     data=drop_random_nulls(data,'Home_touches_in_penalty_area_5',250)
 
 
-    dir = '../../../Data/cleaned/'
-    file_name='training_data.csv'
-    os.makedirs(dir,exist_ok=True)
-    path=os.path.join(dir,file_name)
+    #dir = '../../../Data/cleaned/'
+    #file_name='training_data.csv'
+    #os.makedirs(dir,exist_ok=True)
+    #path=os.path.join(dir,file_name)
     #data = data[data.isnull().sum(axis=1) <= 8].reset_index(drop=True)
-    data.to_csv(path,index=False)
+    #data.to_csv(path,index=False)
     return data,stats, team_elos
 
 
