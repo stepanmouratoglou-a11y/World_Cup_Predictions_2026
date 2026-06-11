@@ -1348,7 +1348,17 @@ elif st.session_state.page == "Absolute predictions":
                     table_html = render_group_standings_table(grp, sim["ranked_groups"][grp], {t["group"] for t in sim["advancing_third_places"]})
                     st.markdown(table_html, unsafe_allow_html=True)
                     
-
+        st.markdown("<hr style='border-color: #282f42;'/>", unsafe_allow_html=True)
+        st.write("#### 🥉 Third-Placed Teams Standings")
+        st.write("All 12 third-placed teams ranked. The top 8 qualify for the Round of 32 and are assigned to their opponents via a dynamic Annex C matching algorithm.")
+        st.markdown("<hr style='border-color: #282f42;'/>", unsafe_allow_html=True)
+        st.write("#### 🥉 Third-Placed Teams Standings")
+        st.write("All 12 third-placed teams ranked. The top 8 qualify for the Round of 32 and are assigned to their opponents via a dynamic Annex C matching algorithm.")
+        
+        third_places_html = render_third_places_table(sim["third_places"], {t["group"] for t in sim["advancing_third_places"]})
+        st.markdown(third_places_html, unsafe_allow_html=True)
+        
+        st.markdown(third_places_html, unsafe_allow_html=True)
         
     with tab_knockout:
         # Sub-tabs for each knockout round to keep it extremely clean
