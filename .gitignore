@@ -5,7 +5,6 @@ mlruns/
 __pycache__/
 *.pkl
 venv/
-Dumped_models/
 *.db
 .idea/
 World_Cup_Predictions_2026/
