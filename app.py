@@ -1028,8 +1028,8 @@ with col_logo:
     st.markdown(f"""
     <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
         <img src="data:image/png;base64,{trophy_base64}" style="height: 40px; width: auto; vertical-align: middle;"/>
-        <h1 style="font-size: 1.7rem; font-weight: 800; color: #ffffff; font-family: 'Inter', sans-serif; white-space: nowrap; margin: 0; padding: 0; line-height: 1.1;">
-            World Cup Predictions, by Stepan
+        <h1 style="font-size: 1.7rem; font-weight: 800; color: #ffffff; font-family: 'Inter', sans-serif; white-space: normal; word-break: break-word; margin: 0; padding: 0; line-height: 1.2;">
+            World Cup Predictions,<br>by Stepan
         </h1>
     </div>
     """, unsafe_allow_html=True)
