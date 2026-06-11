@@ -1,11 +1,8 @@
-playwright
+fastapi
+pydantic
 scikit-learn
 pandas
 numpy
 matplotlib
 seaborn
-numpy
-tensorflow
-pydantic
-fastapi
 streamlit
