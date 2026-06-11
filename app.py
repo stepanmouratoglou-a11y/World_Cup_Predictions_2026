@@ -1356,7 +1356,6 @@ elif st.session_state.page == "Absolute predictions":
         st.write("All 12 third-placed teams ranked. The top 8 qualify for the Round of 32 and are assigned to their opponents via a dynamic Annex C matching algorithm.")
         
         third_places_html = render_third_places_table(sim["third_places"], {t["group"] for t in sim["advancing_third_places"]})
-        st.markdown(third_places_html, unsafe_allow_html=True)
         
         st.markdown(third_places_html, unsafe_allow_html=True)
         
