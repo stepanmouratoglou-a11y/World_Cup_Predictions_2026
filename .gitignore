@@ -3,7 +3,6 @@ mlruns/
 *.log
 .venv/
 __pycache__/
-*.pkl
 venv/
 *.db
 .idea/
