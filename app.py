@@ -611,10 +611,9 @@ def render_third_places_table(third_places_list, advancing_third_groups):
         <thead>
             <tr>
                 <th style="width: 12%; text-align: center;">Pos</th>
-                <th style="width: 18%; text-align: center;">Group</th>
-                <th style="width: 46%;">Team</th>
+                <th style="width: 20%; text-align: center;">Group</th>
+                <th style="width: 56%;">Team</th>
                 <th style="width: 12%; text-align: center;">Pts</th>
-                <th style="width: 12%; text-align: center;">ELO</th>
             </tr>
         </thead>
         <tbody>
@@ -624,7 +623,6 @@ def render_third_places_table(third_places_list, advancing_third_groups):
         grp = t["group"]
         team_name = t["team"]
         pts = t["points"]
-        elo = team_elos.get(team_name, 1500)
         
         is_advancing = grp in advancing_third_groups
         tr_class = 'class="advancing-1"' if is_advancing else 'class="advancing-4"'
@@ -644,7 +642,6 @@ def render_third_places_table(third_places_list, advancing_third_groups):
                 <td style="text-align: center; font-weight: bold; color: #1f77b4;">{grp}</td>
                 <td><span style="font-weight: 600;">{team_name}</span> {flag_html}</td>
                 <td style="text-align: center; font-weight: 700;">{pts}</td>
-                <td style="text-align: center; color: #8fa0c0;">{elo}</td>
             </tr>
         """
     html += "</tbody></table>"
@@ -1348,9 +1345,6 @@ elif st.session_state.page == "Absolute predictions":
                     table_html = render_group_standings_table(grp, sim["ranked_groups"][grp], {t["group"] for t in sim["advancing_third_places"]})
                     st.markdown(table_html, unsafe_allow_html=True)
                     
-        st.markdown("<hr style='border-color: #282f42;'/>", unsafe_allow_html=True)
-        st.write("#### 🥉 Third-Placed Teams Standings")
-        st.write("All 12 third-placed teams ranked. The top 8 qualify for the Round of 32 and are assigned to their opponents via a dynamic Annex C matching algorithm.")
         st.markdown("<hr style='border-color: #282f42;'/>", unsafe_allow_html=True)
         st.write("#### 🥉 Third-Placed Teams Standings")
         st.write("All 12 third-placed teams ranked. The top 8 qualify for the Round of 32 and are assigned to their opponents via a dynamic Annex C matching algorithm.")
