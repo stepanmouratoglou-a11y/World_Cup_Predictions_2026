@@ -1140,7 +1140,7 @@ sorted_dates = sorted(matches_by_date.keys())
 # Page Routing
 if st.session_state.page == "Main":
     st.markdown("### 🏆 World Cup 2026 - Group Stage Predictions")
-    st.write("Below are the match schedules and prediction probabilities generated from the machine learning models. Tap or hover over any match card to highlight.")
+    st.write("Below are the match schedules and prediction probabilities generated from the machine learning models.")
 
     # Display date sections
     for dt in sorted_dates:
@@ -1227,8 +1227,8 @@ if st.session_state.page == "Main":
                 st.markdown(group_html, unsafe_allow_html=True)
 
 elif st.session_state.page == "Make your prediction":
-    st.markdown("### 🔮 Custom Matchup Predictor")
-    st.write("Simulate any matchup between the 48 qualified World Cup 2026 teams. Our machine learning models will estimate the probability of each outcome based on historical performance, ELO ratings, and recent statistics.")
+    st.markdown("### 🔮 Make Your Prediction")
+    st.write("Simulate any match from the 48 countries that participate to the world cup. All the predictions are based exclusively on machine learning models.")
     
     # Deduplicate team list
     all_teams_list = sorted(list(set(
