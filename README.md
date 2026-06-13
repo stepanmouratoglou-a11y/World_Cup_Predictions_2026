@@ -15,11 +15,11 @@ The models used for this project are Random Forest Classifier, (Calibrated) XGBo
 
 ## 📸 Screenshots
 
-*![alt text](image.png)*
+![alt text](image.png)
 
-![Group Stage Standings](![alt text](image-1.png))
+(![alt text](image-1.png))
 
-![Knockout Bracket Predictions](![alt text](image-2.png))
+(![alt text](image-2.png))
 
 ## 🤖 AI & Development Workflow
 
