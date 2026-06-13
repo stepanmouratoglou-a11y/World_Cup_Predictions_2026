@@ -17,9 +17,9 @@ The models used for this project are Random Forest Classifier, (Calibrated) XGBo
 
 ![alt text](image.png)
 
-(![alt text](image-1.png))
+![alt text](image-1.png)
 
-(![alt text](image-2.png))
+![alt text](image-2.png)
 
 ## 🤖 AI & Development Workflow
 
