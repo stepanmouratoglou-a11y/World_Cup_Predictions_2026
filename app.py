@@ -41,6 +41,59 @@ normalization_map = {
     "Cape Verde": "Cabo Verde"
 }
 
+mc_csv_path = os.path.join(project_root, "Data", "monte_carlo_results.csv")
+if os.path.exists(mc_csv_path):
+    mc_df = pd.read_csv(mc_csv_path)
+else:
+    mc_df = None
+
+def get_csv_mc_probs(team1, team2, stage_name=None):
+    if mc_df is not None:
+        t1_norm = normalization_map.get(team1, team1)
+        t2_norm = normalization_map.get(team2, team2)
+        
+        mask_fwd = (
+            ((mc_df["Team1"] == team1) | (mc_df["Team1"] == t1_norm)) &
+            ((mc_df["Team2"] == team2) | (mc_df["Team2"] == t2_norm))
+        )
+        mask_bwd = (
+            ((mc_df["Team1"] == team2) | (mc_df["Team1"] == t2_norm)) &
+            ((mc_df["Team2"] == team1) | (mc_df["Team2"] == t1_norm))
+        )
+        
+        if stage_name:
+            stage_mask = mc_df["Stage"].str.contains(stage_name, case=False, na=False)
+            fwd_match = mc_df[mask_fwd & stage_mask]
+            bwd_match = mc_df[mask_bwd & stage_mask]
+        else:
+            fwd_match = mc_df[mask_fwd]
+            bwd_match = mc_df[mask_bwd]
+            
+        if len(fwd_match) > 0:
+            row = fwd_match.iloc[0]
+            if "RF_Prob_T1" in row:
+                return {
+                    "rf": (float(row["RF_Prob_T1"]), float(row["RF_Prob_Draw"]), float(row["RF_Prob_T2"])),
+                    "xgb": (float(row["XGB_Prob_T1"]), float(row["XGB_Prob_Draw"]), float(row["XGB_Prob_T2"])),
+                    "ann": (float(row["ANN_Prob_T1"]), float(row["ANN_Prob_Draw"]), float(row["ANN_Prob_T2"]))
+                }
+            elif "Prob_T1" in row:
+                p1, pd, p2 = float(row["Prob_T1"]), float(row["Prob_Draw"]), float(row["Prob_T2"])
+                return {"rf": (p1, pd, p2), "xgb": (p1, pd, p2), "ann": (p1, pd, p2)}
+        elif len(bwd_match) > 0:
+            row = bwd_match.iloc[0]
+            if "RF_Prob_T1" in row:
+                return {
+                    "rf": (float(row["RF_Prob_T2"]), float(row["RF_Prob_Draw"]), float(row["RF_Prob_T1"])),
+                    "xgb": (float(row["XGB_Prob_T2"]), float(row["XGB_Prob_Draw"]), float(row["XGB_Prob_T1"])),
+                    "ann": (float(row["ANN_Prob_T2"]), float(row["ANN_Prob_Draw"]), float(row["ANN_Prob_T1"]))
+                }
+            elif "Prob_T1" in row:
+                p1, pd, p2 = float(row["Prob_T2"]), float(row["Prob_Draw"]), float(row["Prob_T1"])
+                return {"rf": (p1, pd, p2), "xgb": (p1, pd, p2), "ann": (p1, pd, p2)}
+    from Monte_Carlo import run_monte_carlo_for_match
+    return run_monte_carlo_for_match(team1, team2)
+
 import base64
 
 @st.cache_data
@@ -291,25 +344,76 @@ def find_third_place_matching(qualified_groups):
         return fallback
 
 
-def simulate_knockout_match(team1, team2):
-    probs = predict_match_probs(team1, team2)
-    rf_t1, rf_draw, rf_t2 = probs["rf"]
-    xgb_t1, xgb_draw, xgb_t2 = probs["xgb"]
-    ann_t1, ann_draw, ann_t2 = probs["ann"]
+def simulate_knockout_match(team1, team2, stage_name):
+    probs_dict = get_csv_mc_probs(team1, team2, stage_name)
     
-    #Let's not play with draws
-    rf_vote = team1 if rf_t1 >= rf_t2 else team2
-    xgb_vote = team1 if xgb_t1 >= xgb_t2 else team2
-    ann_vote = team1 if ann_t1 >= ann_t2 else team2
-    
-    votes = [rf_vote, xgb_vote, ann_vote]
-    winner = team1 if votes.count(team1) >= 2 else team2
-    loser = team2 if winner == team1 else team1
+    winner = None
+    loser = None
+    if mc_df is not None:
+        t1_norm = normalization_map.get(team1, team1)
+        t2_norm = normalization_map.get(team2, team2)
+        
+        mask_fwd = (
+            ((mc_df["Team1"] == team1) | (mc_df["Team1"] == t1_norm)) &
+            ((mc_df["Team2"] == team2) | (mc_df["Team2"] == t2_norm))
+        )
+        mask_bwd = (
+            ((mc_df["Team1"] == team2) | (mc_df["Team1"] == t2_norm)) &
+            ((mc_df["Team2"] == team1) | (mc_df["Team2"] == t1_norm))
+        )
+        
+        if stage_name:
+            stage_mask = mc_df["Stage"].str.contains(stage_name, case=False, na=False)
+            fwd_match = mc_df[mask_fwd & stage_mask]
+            bwd_match = mc_df[mask_bwd & stage_mask]
+        else:
+            fwd_match = mc_df[mask_fwd]
+            bwd_match = mc_df[mask_bwd]
             
+        if len(fwd_match) > 0:
+            row = fwd_match.iloc[0]
+            winner = row["Winner"]
+            loser = row["Loser"]
+        elif len(bwd_match) > 0:
+            row = bwd_match.iloc[0]
+            winner = row["Winner"]
+            loser = row["Loser"]
+            
+        if winner is not None:
+            winner_n = normalization_map.get(winner, winner)
+            t1_norm_cmp = normalization_map.get(team1, team1)
+            if winner == team1 or winner_n == t1_norm_cmp:
+                winner = team1
+                loser = team2
+            else:
+                winner = team2
+                loser = team1
+            
+    if winner is None:
+        from Monte_Carlo import get_model_prediction
+        rf_t1, rf_draw, rf_t2 = probs_dict["rf"]
+        xgb_t1, xgb_draw, xgb_t2 = probs_dict["xgb"]
+        ann_t1, ann_draw, ann_t2 = probs_dict["ann"]
+        
+        rf_pred = get_model_prediction(team1, team2, rf_t1, rf_draw, rf_t2, is_knockout=True)
+        xgb_pred = get_model_prediction(team1, team2, xgb_t1, xgb_draw, xgb_t2, is_knockout=True)
+        ann_pred = get_model_prediction(team1, team2, ann_t1, ann_draw, ann_t2, is_knockout=True)
+        
+        votes = [rf_pred, xgb_pred, ann_pred]
+        if votes.count(2) >= 2:
+            winner = team1
+        elif votes.count(0) >= 2:
+            winner = team2
+        else:
+            from Monte_Carlo import resolve_draws_vectorized
+            resolved = resolve_draws_vectorized(team1, team2, 1)[0]
+            winner = team1 if resolved == 2 else team2
+        loser = team2 if winner == team1 else team1
+        
     return {
         "winner": winner,
         "loser": loser,
-        "probs": probs
+        "probs": probs_dict
     }
 
 
@@ -325,40 +429,87 @@ def simulate_world_cup(matches_list):
             groups[grp][t2] = {"team": t2, "points": 0, "wins": 0, "draws": 0, "losses": 0}
             
     for _, t1, t2, grp in matches_list:
-        probs = predict_match_probs(t1, t2)
-        rf_t1, rf_draw, rf_t2 = probs["rf"]
-        xgb_t1, xgb_draw, xgb_t2 = probs["xgb"]
-        ann_t1, ann_draw, ann_t2 = probs["ann"]
+        probs_dict = get_csv_mc_probs(t1, t2, grp)
         
-        rf_pred = 'H' if rf_t1 > rf_draw and rf_t1 > rf_t2 else ('A' if rf_t2 > rf_draw and rf_t2 > rf_t1 else 'D')
-        xgb_pred = 'H' if xgb_t1 > xgb_draw and xgb_t1 > xgb_t2 else ('A' if xgb_t2 > xgb_draw and xgb_t2 > xgb_t1 else 'D')
-        ann_pred = 'H' if ann_t1 > ann_draw and ann_t1 > ann_t2 else ('A' if ann_t2 > ann_draw and ann_t2 > ann_t1 else 'D')
-        
-        votes = [rf_pred, xgb_pred, ann_pred]
-        counts = {c: votes.count(c) for c in ['H', 'D', 'A']}
-        
-        majority_result = None
-        for c, count in counts.items():
-            if count >= 2:
-                majority_result = c
-                break
-        
-        if majority_result is None:
-            p1 = (rf_t1 + xgb_t1 + ann_t1) / 3.0
-            pd = (rf_draw + xgb_draw + ann_draw) / 3.0
-            p2 = (rf_t2 + xgb_t2 + ann_t2) / 3.0
-            if p1 > pd and p1 > p2:
-                majority_result = 'H'
-            elif p2 > pd and p2 > p1:
-                majority_result = 'A'
+        outcome = None
+        if mc_df is not None:
+            t1_norm = normalization_map.get(t1, t1)
+            t2_norm = normalization_map.get(t2, t2)
+            
+            mask_fwd = (
+                ((mc_df["Team1"] == t1) | (mc_df["Team1"] == t1_norm)) &
+                ((mc_df["Team2"] == t2) | (mc_df["Team2"] == t2_norm))
+            )
+            mask_bwd = (
+                ((mc_df["Team1"] == t2) | (mc_df["Team1"] == t2_norm)) &
+                ((mc_df["Team2"] == t1) | (mc_df["Team2"] == t1_norm))
+            )
+            
+            stage_mask = mc_df["Stage"].str.contains(grp, case=False, na=False)
+            fwd_match = mc_df[mask_fwd & stage_mask]
+            bwd_match = mc_df[mask_bwd & stage_mask]
+            
+            if len(fwd_match) > 0:
+                row = fwd_match.iloc[0]
+                csv_winner = row["Winner"]
+                if csv_winner == t1 or normalization_map.get(csv_winner, csv_winner) == t1_norm:
+                    outcome = 'H'
+                elif csv_winner == t2 or normalization_map.get(csv_winner, csv_winner) == t2_norm:
+                    outcome = 'A'
+                else:
+                    outcome = 'D'
+            elif len(bwd_match) > 0:
+                row = bwd_match.iloc[0]
+                csv_winner = row["Winner"]
+                if csv_winner == t1 or normalization_map.get(csv_winner, csv_winner) == t1_norm:
+                    outcome = 'H'
+                elif csv_winner == t2 or normalization_map.get(csv_winner, csv_winner) == t2_norm:
+                    outcome = 'A'
+                else:
+                    outcome = 'D'
+                    
+        if outcome is None:
+            rf_t1, rf_draw, rf_t2 = probs_dict["rf"]
+            xgb_t1, xgb_draw, xgb_t2 = probs_dict["xgb"]
+            ann_t1, ann_draw, ann_t2 = probs_dict["ann"]
+            
+            from Monte_Carlo import get_model_prediction
+            rf_pred = get_model_prediction(t1, t2, rf_t1, rf_draw, rf_t2, is_knockout=False)
+            xgb_pred = get_model_prediction(t1, t2, xgb_t1, xgb_draw, xgb_t2, is_knockout=False)
+            ann_pred = get_model_prediction(t1, t2, ann_t1, ann_draw, ann_t2, is_knockout=False)
+            
+            votes = [rf_pred, xgb_pred, ann_pred]
+            counts = {c: votes.count(c) for c in [2, 1, 0]}
+            
+            majority_result = None
+            for c, count in counts.items():
+                if count >= 2:
+                    majority_result = c
+                    break
+                    
+            if majority_result is None:
+                p1 = (rf_t1 + xgb_t1 + ann_t1) / 3.0
+                pd = (rf_draw + xgb_draw + ann_draw) / 3.0
+                p2 = (rf_t2 + xgb_t2 + ann_t2) / 3.0
+                if p1 > pd and p1 > p2:
+                    majority_result = 2
+                elif p2 > pd and p2 > p1:
+                    majority_result = 0
+                else:
+                    majority_result = 1
+                    
+            if majority_result == 2:
+                outcome = 'H'
+            elif majority_result == 0:
+                outcome = 'A'
             else:
-                majority_result = 'D'
-                
-        if majority_result == 'H':
+                outcome = 'D'
+            
+        if outcome == 'H':
             groups[grp][t1]["points"] += 3
             groups[grp][t1]["wins"] += 1
             groups[grp][t2]["losses"] += 1
-        elif majority_result == 'A':
+        elif outcome == 'A':
             groups[grp][t2]["points"] += 3
             groups[grp][t2]["wins"] += 1
             groups[grp][t1]["losses"] += 1
@@ -409,7 +560,7 @@ def simulate_world_cup(matches_list):
     ]
     
     for fixture in r32_fixtures:
-        res = simulate_knockout_match(fixture["t1"], fixture["t2"])
+        res = simulate_knockout_match(fixture["t1"], fixture["t2"], "Round of 32")
         r32_results[fixture["id"]] = {
             "id": fixture["id"],
             "date": fixture["date"],
@@ -437,7 +588,7 @@ def simulate_world_cup(matches_list):
     for fixture in r16_fixtures:
         t1 = r32_results[fixture["t1_match"]]["winner"]
         t2 = r32_results[fixture["t2_match"]]["winner"]
-        res = simulate_knockout_match(t1, t2)
+        res = simulate_knockout_match(t1, t2, "Round of 16")
         r16_results[fixture["id"]] = {
             "id": fixture["id"],
             "date": fixture["date"],
@@ -461,7 +612,7 @@ def simulate_world_cup(matches_list):
     for fixture in qf_fixtures:
         t1 = r16_results[fixture["t1_match"]]["winner"]
         t2 = r16_results[fixture["t2_match"]]["winner"]
-        res = simulate_knockout_match(t1, t2)
+        res = simulate_knockout_match(t1, t2, "Quarter-Finals")
         qf_results[fixture["id"]] = {
             "id": fixture["id"],
             "date": fixture["date"],
@@ -482,7 +633,7 @@ def simulate_world_cup(matches_list):
     for fixture in sf_fixtures:
         t1 = qf_results[fixture["t1_match"]]["winner"]
         t2 = qf_results[fixture["t2_match"]]["winner"]
-        res = simulate_knockout_match(t1, t2)
+        res = simulate_knockout_match(t1, t2, "Semi-Finals")
         sf_results[fixture["id"]] = {
             "id": fixture["id"],
             "date": fixture["date"],
@@ -496,7 +647,7 @@ def simulate_world_cup(matches_list):
         
     t1_bronze = sf_results[101]["loser"]
     t2_bronze = sf_results[102]["loser"]
-    res_bronze = simulate_knockout_match(t1_bronze, t2_bronze)
+    res_bronze = simulate_knockout_match(t1_bronze, t2_bronze, "Bronze Final")
     bronze_result = {
         "id": 103,
         "date": "Saturday, 18 July 2026",
@@ -511,7 +662,7 @@ def simulate_world_cup(matches_list):
     # Final Simulation
     t1_final = sf_results[101]["winner"]
     t2_final = sf_results[102]["winner"]
-    res_final = simulate_knockout_match(t1_final, t2_final)
+    res_final = simulate_knockout_match(t1_final, t2_final, "Grand Final")
     final_result = {
         "id": 104,
         "date": "Sunday, 19 July 2026",
@@ -732,6 +883,7 @@ def render_knockout_match_card(match_data):
     </div>
     """
     return clean_html(html)
+
 
 
 st.markdown("""
@@ -1046,7 +1198,15 @@ with col_btn3:
         st.session_state.page = "Absolute predictions"
         st.rerun()
 
-st.markdown('<div style="border-bottom: 2px solid #1f77b4; margin-bottom: 30px; opacity: 0.8;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="border-bottom: 2px solid #1f77b4; margin-bottom: 20px; opacity: 0.8;"></div>', unsafe_allow_html=True)
+
+st.markdown("""
+<div style="background-color: rgba(31, 119, 180, 0.08); border-left: 4px solid #1f77b4; padding: 12px 16px; border-radius: 6px; margin-bottom: 25px; font-family: 'Inter', sans-serif;">
+    <span style="color: #8fa0c0; font-size: 0.88rem; font-weight: 500; line-height: 1.5;">
+        💡 <strong>Methodology Note:</strong> Match probabilities are calculated via a <strong>10,000-trial Monte Carlo simulation</strong> per model (30,000 trials total per match) based on predictive pipelines from three machine learning models: <strong>Random Forest Classifier</strong>, <strong>XGBoost Classifier (Calibrated)</strong>, and <strong>Artificial Neural Network (MLP)</strong>.
+    </span>
+</div>
+""", unsafe_allow_html=True)
 
 
 # Match Dataset Raw definition
@@ -1163,11 +1323,10 @@ if st.session_state.page == "Main":
                 
                 # Loop through match pairings inside the Group Box
                 for t1, t2 in pairings:
-                    # Get model predictions
-                    probs = predict_match_probs(t1, t2)
-                    rf_t1, rf_draw, rf_t2 = probs["rf"]
-                    xgb_t1, xgb_draw, xgb_t2 = probs["xgb"]
-                    ann_t1, ann_draw, ann_t2 = probs["ann"]
+                    probs_dict = get_csv_mc_probs(t1, t2, grp_name)
+                    rf_t1, rf_draw, rf_t2 = probs_dict["rf"]
+                    xgb_t1, xgb_draw, xgb_t2 = probs_dict["xgb"]
+                    ann_t1, ann_draw, ann_t2 = probs_dict["ann"]
                     
                     # Fetch flags base64
                     t1_flag = flag_file_map.get(t1, "")
@@ -1203,7 +1362,7 @@ if st.session_state.page == "Main":
 <span>{t2}: {rf_t2:.1f}%</span>
 </div>
 </div>
-<div class="pred-row">
+<div class="pred-row" style="margin-top: 4px;">
 <div class="pred-title xgb-title">🟢 Prediction 2 (XGBoost)</div>
 <div class="pred-bars xgb-bars">
 <span>{t1}: {xgb_t1:.1f}%</span>
@@ -1211,7 +1370,7 @@ if st.session_state.page == "Main":
 <span>{t2}: {xgb_t2:.1f}%</span>
 </div>
 </div>
-<div class="pred-row">
+<div class="pred-row" style="margin-top: 4px;">
 <div class="pred-title ann-title">🟡 Prediction 3 (Neural Network)</div>
 <div class="pred-bars ann-bars">
 <span>{t1}: {ann_t1:.1f}%</span>
@@ -1222,7 +1381,7 @@ if st.session_state.page == "Main":
 </div>
 </div>"""
                 
-                # Close parent rectangle
+                
                 group_html += "</div>"
                 st.markdown(group_html, unsafe_allow_html=True)
 
@@ -1230,7 +1389,6 @@ elif st.session_state.page == "Make your prediction":
     st.markdown("### 🔮 Make Your Prediction")
     st.write("Simulate any match from the 48 countries that participate to the world cup. All the predictions are based exclusively on machine learning models.")
     
-    # Deduplicate team list
     all_teams_list = sorted(list(set(
         "Cote Divoire" if t == "Cote divoire" else t for t in flag_file_map.keys()
     )))
@@ -1254,8 +1412,9 @@ elif st.session_state.page == "Make your prediction":
     if team1 == team2:
         st.warning("⚠️ Please select two different teams to run the match simulation.")
     else:
-        # Run simulation
-        probs = predict_match_probs(team1, team2)
+        # Run simulation using live Monte Carlo
+        from Monte_Carlo import run_monte_carlo_for_match
+        probs = run_monte_carlo_for_match(team1, team2)
         rf_t1, rf_draw, rf_t2 = probs["rf"]
         xgb_t1, xgb_draw, xgb_t2 = probs["xgb"]
         ann_t1, ann_draw, ann_t2 = probs["ann"]

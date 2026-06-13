@@ -6,4 +6,4 @@ __pycache__/
 venv/
 *.db
 .idea/
-World_Cup_Predictions_2026/
+Data/monte_carlo_raw_trials.csv
