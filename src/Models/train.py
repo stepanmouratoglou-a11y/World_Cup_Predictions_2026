@@ -83,18 +83,17 @@ def logistic_regression(X_train,y_train):
 def artificial_neural_network(X_train,y_train):
     tscv=TimeSeriesSplit(n_splits=5)
 
-    classifier=MLPClassifier(
-        early_stopping=True, 
+    classifier=MLPClassifier( 
         validation_fraction=0.1, 
-        max_iter=1970, 
+        max_iter=1000, 
         random_state=42
     )
 
     parameters = {
-        'hidden_layer_sizes': [(128,64),(64,32)],
-        'alpha': [1e-5, 0.001],
-        'activation': ['relu'],
-        'learning_rate': ['constant', 'adaptive'],
+        'hidden_layer_sizes': [(16,)],
+        'alpha': [1.0],
+        'activation': ['tanh'],
+        'learning_rate': ['constant'],
         'learning_rate_init': [0.001]
     }
 
@@ -105,8 +104,10 @@ def artificial_neural_network(X_train,y_train):
         scoring='neg_log_loss',
         cv=tscv
     )
-
+    
     grid_search.fit(X_train, y_train)
     model = grid_search.best_estimator_
 
-    return model
+    calibrated_model=CalibratedClassifierCV(estimator=model,method='sigmoid',n_jobs=-1,cv=TimeSeriesSplit(n_splits=5))
+    calibrated_model.fit(X_train,y_train)
+    return calibrated_model

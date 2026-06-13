@@ -80,8 +80,14 @@ def get_match_features_df(home_team, away_team):
     }
     return pd.DataFrame(data)
 
+prediction_cache = {}
+
 def predict_match_probs_mc(team1, team2):
     """Calculates averaged Home/Away probabilities for RF, XGBoost, and ANN."""
+    key = (team1, team2)
+    if key in prediction_cache:
+        return prediction_cache[key]
+        
     h_norm = get_normalized_name(team1)
     a_norm = get_normalized_name(team2)
     
@@ -114,11 +120,13 @@ def predict_match_probs_mc(team1, team2):
     ann_draw   = (ann_probs_fwd[1] + ann_probs_bwd[1]) / 2.0
     ann_t2_win = (ann_probs_fwd[0] + ann_probs_bwd[2]) / 2.0
     
-    return {
+    res = {
         "rf": (rf_t1_win, rf_draw, rf_t2_win),
         "xgb": (xgb_t1_win, xgb_draw, xgb_t2_win),
         "ann": (ann_t1_win, ann_draw, ann_t2_win)
     }
+    prediction_cache[key] = res
+    return res
 
 def resolve_draws_vectorized(team1, team2, n_draws):
     """
@@ -156,6 +164,32 @@ def resolve_draws_vectorized(team1, team2, n_draws):
     else:
         # Equal Elo: 50/50 chance
         return np.random.choice([2, 0], size=n_draws)
+
+def roll_for_match(t1, t2, is_knockout=False):
+    probs = predict_match_probs_mc(t1, t2)
+    rf_t1, rf_draw, rf_t2 = probs["rf"]
+    xgb_t1, xgb_draw, xgb_t2 = probs["xgb"]
+    ann_t1, ann_draw, ann_t2 = probs["ann"]
+    
+    p1 = (rf_t1 + xgb_t1 + ann_t1) / 3.0
+    p_draw = (rf_draw + xgb_draw + ann_draw) / 3.0
+    p2 = (rf_t2 + xgb_t2 + ann_t2) / 3.0
+    
+    p_sum = p1 + p_draw + p2
+    if p_sum > 0:
+        p1 /= p_sum
+        p_draw /= p_sum
+        p2 /= p_sum
+    else:
+        p1, p_draw, p2 = 1.0/3.0, 1.0/3.0, 1.0/3.0
+        
+    outcome = np.random.choice(['H', 'D', 'A'], p=[p1, p_draw, p2])
+    
+    if is_knockout and outcome == 'D':
+        resolved = resolve_draws_vectorized(t1, t2, 1)[0]
+        outcome = 'H' if resolved == 2 else 'A'
+        
+    return outcome
 
 def run_monte_carlo_for_match(team1, team2, trials=10000):
     """
@@ -901,6 +935,190 @@ matches_raw = [
     ("28.06.2026", "Algeria", "Austria", "Group J")
 ]
 
+def simulate_single_tournament(matches_list):
+    teams_stage = {}
+    
+    # 1. Group Stage
+    groups = {}
+    for _, t1, t2, grp in matches_list:
+        if grp not in groups:
+            groups[grp] = {}
+        if t1 not in groups[grp]:
+            groups[grp][t1] = {"team": t1, "points": 0}
+            teams_stage[t1] = "Group_Stage_Exit"
+        if t2 not in groups[grp]:
+            groups[grp][t2] = {"team": t2, "points": 0}
+            teams_stage[t2] = "Group_Stage_Exit"
+            
+    for _, t1, t2, grp in matches_list:
+        outcome = roll_for_match(t1, t2, is_knockout=False)
+        if outcome == 'H':
+            groups[grp][t1]["points"] += 3
+        elif outcome == 'A':
+            groups[grp][t2]["points"] += 3
+        else:
+            groups[grp][t1]["points"] += 1
+            groups[grp][t2]["points"] += 1
+            
+    # Rank groups
+    ranked_groups = {}
+    for grp, teams_dict in groups.items():
+        teams_list = list(teams_dict.values())
+        teams_list.sort(key=lambda x: (x["points"], team_elos.get(get_normalized_name(x["team"]), 1500)), reverse=True)
+        ranked_groups[grp] = teams_list
+        
+    third_places = []
+    for grp, teams_list in ranked_groups.items():
+        grp_letter = grp.replace("Group ", "")
+        third_team = teams_list[2].copy()
+        third_team["group"] = grp_letter
+        third_places.append(third_team)
+        
+    third_places.sort(key=lambda x: (x["points"], team_elos.get(get_normalized_name(x["team"]), 1500)), reverse=True)
+    
+    advancing_third_places = third_places[:8]
+    advancing_third_groups = {item["group"] for item in advancing_third_places}
+    third_place_mapping = find_third_place_matching(advancing_third_groups)
+    
+    # Mark Reached_R32 for qualified teams
+    qualified_teams = []
+    for grp, teams_list in ranked_groups.items():
+        qualified_teams.append(teams_list[0]["team"])
+        qualified_teams.append(teams_list[1]["team"])
+    for item in advancing_third_places:
+        qualified_teams.append(item["team"])
+        
+    for t in qualified_teams:
+        teams_stage[t] = "Reached_R32"
+        
+    # R32 Fixtures
+    r32_fixtures = [
+        {"id": 73, "t1": ranked_groups["Group A"][1]["team"], "t2": ranked_groups["Group B"][1]["team"]},
+        {"id": 74, "t1": ranked_groups["Group E"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[74]}"][2]["team"]},
+        {"id": 75, "t1": ranked_groups["Group F"][0]["team"], "t2": ranked_groups["Group C"][1]["team"]},
+        {"id": 76, "t1": ranked_groups["Group C"][0]["team"], "t2": ranked_groups["Group F"][1]["team"]},
+        {"id": 77, "t1": ranked_groups["Group I"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[77]}"][2]["team"]},
+        {"id": 78, "t1": ranked_groups["Group E"][1]["team"], "t2": ranked_groups["Group I"][1]["team"]},
+        {"id": 79, "t1": ranked_groups["Group A"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[79]}"][2]["team"]},
+        {"id": 80, "t1": ranked_groups["Group L"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[80]}"][2]["team"]},
+        {"id": 81, "t1": ranked_groups["Group D"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[81]}"][2]["team"]},
+        {"id": 82, "t1": ranked_groups["Group G"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[82]}"][2]["team"]},
+        {"id": 83, "t1": ranked_groups["Group K"][1]["team"], "t2": ranked_groups["Group L"][1]["team"]},
+        {"id": 84, "t1": ranked_groups["Group H"][0]["team"], "t2": ranked_groups["Group J"][1]["team"]},
+        {"id": 85, "t1": ranked_groups["Group B"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[85]}"][2]["team"]},
+        {"id": 86, "t1": ranked_groups["Group J"][0]["team"], "t2": ranked_groups["Group H"][1]["team"]},
+        {"id": 87, "t1": ranked_groups["Group K"][0]["team"], "t2": ranked_groups[f"Group {third_place_mapping[87]}"][2]["team"]},
+        {"id": 88, "t1": ranked_groups["Group D"][1]["team"], "t2": ranked_groups["Group G"][1]["team"]}
+    ]
+    
+    r32_winners = {}
+    for fix in r32_fixtures:
+        t1, t2 = fix["t1"], fix["t2"]
+        res = roll_for_match(t1, t2, is_knockout=True)
+        winner = t1 if res == 'H' else t2
+        r32_winners[fix["id"]] = winner
+        teams_stage[winner] = "Reached_R16"
+        
+    # R16 Fixtures
+    r16_fixtures = [
+        {"id": 89, "t1_match": 74, "t2_match": 77},
+        {"id": 90, "t1_match": 73, "t2_match": 75},
+        {"id": 91, "t1_match": 76, "t2_match": 78},
+        {"id": 92, "t1_match": 79, "t2_match": 80},
+        {"id": 93, "t1_match": 83, "t2_match": 84},
+        {"id": 94, "t1_match": 81, "t2_match": 82},
+        {"id": 95, "t1_match": 86, "t2_match": 88},
+        {"id": 96, "t1_match": 85, "t2_match": 87}
+    ]
+    
+    r16_winners = {}
+    for fix in r16_fixtures:
+        t1 = r32_winners[fix["t1_match"]]
+        t2 = r32_winners[fix["t2_match"]]
+        res = roll_for_match(t1, t2, is_knockout=True)
+        winner = t1 if res == 'H' else t2
+        r16_winners[fix["id"]] = winner
+        teams_stage[winner] = "Reached_QF"
+        
+    # QF Fixtures
+    qf_fixtures = [
+        {"id": 97, "t1_match": 89, "t2_match": 90},
+        {"id": 98, "t1_match": 93, "t2_match": 94},
+        {"id": 99, "t1_match": 91, "t2_match": 92},
+        {"id": 100, "t1_match": 95, "t2_match": 96}
+    ]
+    
+    qf_winners = {}
+    for fix in qf_fixtures:
+        t1 = r16_winners[fix["t1_match"]]
+        t2 = r16_winners[fix["t2_match"]]
+        res = roll_for_match(t1, t2, is_knockout=True)
+        winner = t1 if res == 'H' else t2
+        qf_winners[fix["id"]] = winner
+        teams_stage[winner] = "Reached_SF"
+        
+    # SF Fixtures
+    sf_fixtures = [
+        {"id": 101, "t1_match": 97, "t2_match": 98},
+        {"id": 102, "t1_match": 99, "t2_match": 100}
+    ]
+    
+    sf_winners = {}
+    for fix in sf_fixtures:
+        t1 = qf_winners[fix["t1_match"]]
+        t2 = qf_winners[fix["t2_match"]]
+        res = roll_for_match(t1, t2, is_knockout=True)
+        winner = t1 if res == 'H' else t2
+        sf_winners[fix["id"]] = winner
+        teams_stage[winner] = "Reached_Final"
+        
+    # Grand Final
+    t1_final = sf_winners[101]
+    t2_final = sf_winners[102]
+    res = roll_for_match(t1_final, t2_final, is_knockout=True)
+    winner_final = t1_final if res == 'H' else t2_final
+    teams_stage[winner_final] = "Won_World_Cup"
+    
+    return teams_stage
+
+def simulate_N_tournaments(matches_list, n_sims=1000):
+    unique_teams = set()
+    for _, t1, t2, _ in matches_list:
+        unique_teams.add(t1)
+        unique_teams.add(t2)
+    unique_teams = sorted(list(unique_teams))
+    
+    tracker = {}
+    for team in unique_teams:
+        tracker[team] = {
+            "Group_Stage_Exit": 0,
+            "Reached_R32": 0,
+            "Reached_R16": 0,
+            "Reached_QF": 0,
+            "Reached_SF": 0,
+            "Reached_Final": 0,
+            "Won_World_Cup": 0
+        }
+        
+    print(f"Running {n_sims} tournament simulations...")
+    for i in range(n_sims):
+        if (i + 1) % 100 == 0:
+            print(f"Completed {i + 1}/{n_sims} simulations...")
+        teams_stage = simulate_single_tournament(matches_list)
+        for team, stage in teams_stage.items():
+            tracker[team][stage] += 1
+            
+    results = []
+    for team in unique_teams:
+        row = {"Team": team}
+        for milestone in ["Group_Stage_Exit", "Reached_R32", "Reached_R16", "Reached_QF", "Reached_SF", "Reached_Final", "Won_World_Cup"]:
+            row[milestone] = (tracker[team][milestone] / n_sims) * 100.0
+        results.append(row)
+        
+    df = pd.DataFrame(results)
+    df = df.sort_values(by="Won_World_Cup", ascending=False)
+    return df
+
 def main():
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -908,8 +1126,10 @@ def main():
         pass
     print("Starting Monte Carlo simulation for 2026 World Cup...")
     os.makedirs(os.path.join(project_root, "Data"), exist_ok=True)
+    
     csv_path = os.path.join(project_root, "Data", "monte_carlo_results.csv")
     raw_csv_path = os.path.join(project_root, "Data", "monte_carlo_raw_trials.csv")
+    overall_csv_path = os.path.join(project_root, "Data", "tournament_monte_carlo_overall.csv")
     
     if os.path.exists(raw_csv_path):
         try:
@@ -922,11 +1142,16 @@ def main():
     records_df = pd.DataFrame(sim_results["match_records"])
     records_df.to_csv(csv_path, index=False)
     
-    print(f"Monte Carlo simulation completed!")
+    print(f"Monte Carlo single tournament completed!")
     print(f"Aggregated results saved to {csv_path}")
     print(f"Raw trial results saved to {raw_csv_path}")
     print(f"Total matches simulated: {len(records_df)}")
     print(f"World Cup Champion: {sim_results['final_result']['winner']}")
+    
+    print("Starting N=1000 Master Loop simulation...")
+    overall_df = simulate_N_tournaments(matches_raw, n_sims=1000)
+    overall_df.to_csv(overall_csv_path, index=False)
+    print(f"N=1000 Master Loop simulation completed! Overall probabilities saved to {overall_csv_path}")
 
 if __name__ == '__main__':
     main()

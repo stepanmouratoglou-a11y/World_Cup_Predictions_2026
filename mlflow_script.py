@@ -101,17 +101,20 @@ def train_logistic_regression(X_tr, y_tr, cv_inner):
 def train_mlp_classifier(X_tr, y_tr, cv_inner):
     """Grid searches and fits the best MLPClassifier model."""
     print("Tuning MLP Neural Network Classifier...")
-    mlp = MLPClassifier(max_iter=1000, random_state=42)
-    parameters = {
-        'hidden_layer_sizes': [(128,64),(64,32)],
-        'alpha': [1e-5, 0.001],
-        'activation': ['relu'],
+    mlp = MLPClassifier(validation_fraction=0.1,max_iter=1000, random_state=42)
+    mlp_grid = {
+        'hidden_layer_sizes': [(16,),(32,)],
+        'alpha': [ 0.1, 1.0],
+        'activation': ['relu','tanh'],
         'learning_rate': ['constant', 'adaptive'],
         'learning_rate_init': [0.001]
     }
     grid = GridSearchCV(estimator=mlp, param_grid=mlp_grid, cv=cv_inner, scoring="neg_log_loss", n_jobs=-1)
     grid.fit(X_tr, y_tr)
-    return grid.best_estimator_, grid.best_params_
+    model=grid.best_estimator_
+    calibrated_model=CalibratedClassifierCV(estimator=model,method='sigmoid',n_jobs=-1,cv=TimeSeriesSplit(n_splits=5))
+    calibrated_model.fit(X_tr,y_tr)
+    return calibrated_model, grid.best_params_
 
 
 def main():

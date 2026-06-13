@@ -857,25 +857,22 @@ def render_knockout_match_card(match_data):
             <div class="pred-row">
                 <div class="pred-title rf-title" style="font-size: 0.68rem; margin-bottom: 2px;">🔵 Random Forest</div>
                 <div class="pred-bars rf-bars" style="font-size: 0.68rem; padding: 3px 6px;">
-                    <span>{t1}: {rf_t1:.1f}%</span>
-                    <span>Draw: {rf_draw:.1f}%</span>
-                    <span>{t2}: {rf_t2:.1f}%</span>
+                    <span>{t1}: {rf_t1 + 0.5 * rf_draw:.1f}%</span>
+                    <span>{t2}: {rf_t2 + 0.5 * rf_draw:.1f}%</span>
                 </div>
             </div>
             <div class="pred-row" style="margin-top: 4px;">
                 <div class="pred-title xgb-title" style="font-size: 0.68rem; margin-bottom: 2px;">🟢 XGBoost</div>
                 <div class="pred-bars xgb-bars" style="font-size: 0.68rem; padding: 3px 6px;">
-                    <span>{t1}: {xgb_t1:.1f}%</span>
-                    <span>Draw: {xgb_draw:.1f}%</span>
-                    <span>{t2}: {xgb_t2:.1f}%</span>
+                    <span>{t1}: {xgb_t1 + 0.5 * xgb_draw:.1f}%</span>
+                    <span>{t2}: {xgb_t2 + 0.5 * xgb_draw:.1f}%</span>
                 </div>
             </div>
             <div class="pred-row" style="margin-top: 4px;">
                 <div class="pred-title ann-title" style="font-size: 0.68rem; margin-bottom: 2px;">🟡 Neural Network</div>
                 <div class="pred-bars ann-bars" style="font-size: 0.68rem; padding: 3px 6px;">
-                    <span>{t1}: {ann_t1:.1f}%</span>
-                    <span>Draw: {ann_draw:.1f}%</span>
-                    <span>{t2}: {ann_t2:.1f}%</span>
+                    <span>{t1}: {ann_t1 + 0.5 * ann_draw:.1f}%</span>
+                    <span>{t2}: {ann_t2 + 0.5 * ann_draw:.1f}%</span>
                 </div>
             </div>
         </div>
